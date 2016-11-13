@@ -6,6 +6,7 @@ var gulp          =  require('gulp'),
     uglify        =  require('gulp-uglify'),
     rename        =  require('gulp-rename'),
     sass          =  require('gulp-sass'),
+    autoprefixer  =  require('gulp-autoprefixer'),
     maps          =  require('gulp-sourcemaps'),
     del           =  require('del'),
     plumber       =  require('gulp-plumber'),
@@ -14,38 +15,38 @@ var gulp          =  require('gulp'),
     csso          =  require('gulp-csso'),
     buffer        =  require('vinyl-buffer'),
     merge         =  require('merge-stream'),
-    connect       =  require('gulp-connect'),
     sync          =  require('browser-sync').create(),
     reload        =  sync.reload;
 
-gulp.task("log", function(){ 
+gulp.task("log", function(){
    util.log('');
 });
-   
-gulp.task("concatScripts", function(){ 
- return gulp.src(['js/jquery-1.11.3.min.js','js/main.js'])
+
+gulp.task("concatScripts", function(){
+ return gulp.src('js/main.js')
   	  .pipe(maps.init())
 	    .pipe(concat('app.js'))
+      .pipe(uglify())
 	    .pipe(maps.write('./'))
+      .pipe(sync.reload({stream:true}))
 	    .pipe(gulp.dest('js'));
 });
 
-gulp.task("minifyScripts", ['concatScripts'], function(){ 
+gulp.task("minifyScripts", ['concatScripts'], function(){
  return	gulp.src("js/app.js")
   	    .pipe(uglify())
   	    .pipe(rename('app-min.js'))
-  	    .pipe(gulp.dest('dist/js'))
-        .pipe(connect.reload());
+  	    .pipe(gulp.dest('dist/js'));
 });
 
-gulp.task("compressImgs", function(){ 
+gulp.task("compressImgs", function(){
  return gulp.src('img/*')
          .pipe(imagemin())
          .pipe(gulp.dest('dist/img'));
 });
 
-gulp.task("sprite", function(){ 
-  // Generate our spritesheet
+gulp.task("sprite", function(){
+  // Generate our spritesheet. add images to imgsprite folder the task will build the spritesheet
   var spriteData = gulp.src('imgspritesrc/*.png')  //TODO: FIX OUTPUT LOCATION
                    .pipe(spritesmith({
                       imgName: 'sprite.png',
@@ -53,22 +54,22 @@ gulp.task("sprite", function(){
                   }));
  //Pipe image stream through image optimizer and onto disk
   var imgStream = spriteData.img
-    //DEV: We must buffer our stream into a buffer for 'imagemin' 
+    //DEV: We must buffer our stream into a buffer for 'imagemin'
     .pipe(buffer())
     .pipe(imagemin())
     .pipe(gulp.dest('dist/img'));
 
 //Pipe CSS Stream through CSS optimizer and onto disk
   var cssStream = spriteData.css
-    .pipe(csso()) 
+    .pipe(csso())
     .pipe(gulp.dest('dist/css'));
 
- 
+
  //Return a merged stream to handle both 'end' events
-  return merge(imgStream, cssStream);        
+  return merge(imgStream, cssStream);
 });
 
-gulp.task("complieSass", function(){ 
+gulp.task("complieSass", function(){
  return gulp.src("scss/style.scss")
         .pipe(plumber())
         .pipe(maps.init())
@@ -77,48 +78,37 @@ gulp.task("complieSass", function(){
                 "includePaths": ["scss"],
                 "onError": sync.notify
               }))
+        .pipe(autoprefixer({
+           browsers: ['last 3 versions'],
+           cascade: false
+          }))
         .pipe(maps.write('./'))
-        .pipe(sync.reload({"stream":true}))
-        .pipe(gulp.dest('css'))
-        .pipe(connect.reload());
+        .pipe(sync.reload({stream:true}))
+        .pipe(gulp.dest('css'));
  });
 
-gulp.task("watchFiles", function(){ 
-   gulp.watch('scss/**/*.scss', ['complieSass']);
-   gulp.watch('js/*.js', ['concatScripts']);
-   gulp.watch('img/*', ['compressImgs']);
-   gulp.watch('./*.html', ['html']);
+gulp.task("browserSync", function(){
+    sync.init({
+       server: {
+         baseDir: './'
+       }
+    });
 });
 
-gulp.task("connect", function(){
-   connect.server({
-      root: './',
-      livereload: true
-   });
-});
-
-gulp.task("html", function(){
-    return gulp.src("./*.html")
-               .pipe(connect.reload());
-});
-
-gulp.task("reloadBrowser", ["complieSass"], function(){
-     sync.reload();
-});
-
-gulp.task("clean", function(){ 
+gulp.task("clean", function(){
     del(['dist', 'css/style.css*', 'js/app*.js*']);
 });
 
-gulp.task("build", ['concatScripts', 'minifyScripts', 'complieSass', 'watchFiles', 'connect', 'html'], function(){
-	return gulp.src(['css/style.css','js/app.min.js', '*.html', 'img/**', 'fonts/**'], {base: './'})
-	            .pipe(gulp.dest('dist'));
+gulp.task("watchFiles", function(){
+   gulp.watch('scss/**/*.scss', ['complieSass']);
+   gulp.watch('js/*.js', ['concatScripts']);
+   gulp.watch('img/*', ['compressImgs']);
+   gulp.watch('./*.html', sync.reload);
 });
 
-gulp.task("serve", ['watchFiles'], function(){
-   sync.init({
-        server: "./"
-   });
+gulp.task("build", ['concatScripts', 'minifyScripts', 'complieSass', 'watchFiles', 'browserSync'], function(){
+	return gulp.src(['css/style.css','js/app.min.js', '*.html', 'img/**', 'fonts/**'], {base: './'})
+	            .pipe(gulp.dest('dist'));
 });
 
 gulp.task("default", ['clean'], function() {
