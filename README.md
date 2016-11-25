@@ -3,6 +3,7 @@ build system boilerplate for web projects.
 
 ##Build System Features:
 
+-Flexbox
 -SASS
 -jQuery
 -Gulp
